@@ -8,22 +8,22 @@ import (
 	"os"
 	"sync"
 	"time"
-	// "constants"
+	. "constants"
 )
 
-const (
-	MAX_ARGUMENT_VALUE   = 500.0
-	MAX_EMPLOYEES        = 2
-	MAX_CHAIRMEN         = 1
-	MAX_CLIENTS          = 1
-	MAX_TASKLIST_SIZE    = 40
-	MAX_STORAGE_CAPACITY = 40
-	EMPLOYEE_SLEEP       = 1000 * time.Millisecond
-	CHAIRMAN_SLEEP       = 400 * time.Millisecond
-	CLIENT_SLEEP         = 2000 * time.Millisecond
-	CALM                 = iota
-	TALKATIVE
-)
+// const (
+// 	MAX_ARGUMENT_VALUE   = 500.0
+// 	MAX_EMPLOYEES        = 2
+// 	MAX_CHAIRMEN         = 1
+// 	MAX_CLIENTS          = 1
+// 	MAX_TASKLIST_SIZE    = 40
+// 	MAX_STORAGE_CAPACITY = 40
+// 	EMPLOYEE_SLEEP       = 1000 * time.Millisecond
+// 	CHAIRMAN_SLEEP       = 400 * time.Millisecond
+// 	CLIENT_SLEEP         = 2000 * time.Millisecond
+// 	CALM                 = iota
+// 	TALKATIVE
+// )
 
 var operators = [3]string{"+", "-", "*"}
 var mode = CALM
@@ -163,7 +163,7 @@ func client(displayOfProducts <-chan product) {
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Println("Wrong number of arguments")
+		fmt.Println("Wrong number of arguments. Valid input is calm|-c|talkative|-t")
 		return
 	}
 	arg := os.Args[1]
