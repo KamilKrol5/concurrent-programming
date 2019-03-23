@@ -2,6 +2,8 @@ with Ada.Text_IO;
 with Ada.Numerics.Float_Random;
 with Ada.Numerics.Discrete_Random;
 with Ada.Command_Line;
+--  with Ada.Strings.Unbounded;
+--  use Ada.Strings.unbounded;
 use Ada.Text_IO;
 
 procedure Main is
@@ -17,9 +19,10 @@ procedure Main is
    MAX_CLIENTS          : constant  := 1;
    MAX_TASKLIST_SIZE    : constant  := 40;
    MAX_STORAGE_CAPACITY : constant  := 40;
-   EMPLOYEE_SLEEP       : constant  := 1000;
-   CHAIRMAN_SLEEP       : constant  := 400;
-   CLIENT_SLEEP         : constant  := 2000;
+   EMPLOYEE_SLEEP       : constant  := 1;
+   CHAIRMAN_SLEEP       : constant  := 0.4;
+   CLIENT_SLEEP         : constant  := 2;
+   NL : constant String := Character'Val(13) & Character'Val(10);
 
    modee : Mode := CALM;
    operators : operatorsArray := ('+', '-', '*');
@@ -43,6 +46,7 @@ procedure Main is
    protected type TaskBufferType is
       entry Insert (An_Item : in  taskk);
       entry Remove (An_Item : out taskk);
+      function seeTaskList(len : out Natural;head1 : out TaskListRange) return TaskArray;
    private
       Length : Natural range 0 .. MAX_TASKLIST_SIZE := 0;
       Head, Tail : TaskListRange := 1;
@@ -64,6 +68,12 @@ procedure Main is
          Head := Head mod MAX_TASKLIST_SIZE + 1;
          Length := Length - 1;
       end Remove;
+      function seeTaskList(len : out Natural;head1 : out TaskListRange) return TaskArray is
+      begin
+         len := Length;
+         head1 := Head;
+         return Data;
+      end seeTaskList;
    end TaskBufferType;
 
    tasks : TaskBufferType;
@@ -71,6 +81,7 @@ procedure Main is
    protected type StorageBufferType is
       entry Insert (An_Item : in  product);
       entry Remove (An_Item : out product);
+      function seeStorage(len : out Natural;head1 : out StorageListRange) return StorageArray;
    private
       Length : Natural range 0 .. MAX_TASKLIST_SIZE := 0;
       Head, Tail : StorageListRange := 1;
@@ -92,6 +103,12 @@ procedure Main is
          Head := Head mod MAX_STORAGE_CAPACITY + 1;
          Length := Length - 1;
       end Remove;
+      function seeStorage(len : out Natural;head1 : out StorageListRange) return StorageArray is
+      begin
+         len := Length;
+         head1 := Head;
+        return Data;
+      end seeStorage;
    end StorageBufferType;
 
    storage: StorageBufferType;
@@ -113,7 +130,29 @@ procedure Main is
 
    end doTask;
 
-   task chairman;
+   procedure printTaksArray(arr : TaskArray) is
+   begin
+      Put("[ ");
+      for I in arr'Range loop
+
+            Put("{" & Float'Image(arr(I).first) & operatorT'Image(arr(I).operator) & Float'Image(arr(I).second) & " }");
+
+      end loop;
+      Put("]\n");
+   end printTaksArray;
+
+   procedure printStorageArrat(arr : StorageArray) is
+   begin
+      Put("[ ");
+      for I in arr'Range loop
+
+            Put(Float'Image(arr(I).value) & " ");
+
+      end loop;
+      Put("]\n");
+   end printStorageArrat;
+
+   task type chairman;
    task body chairman is
       newTask : taskk;
       Gen : FRand.Generator;
@@ -133,15 +172,94 @@ procedure Main is
          delay(Duration(CHAIRMAN_SLEEP));
       end loop;
    end chairman;
+   type chairman_array is array(1..MAX_CHAIRMEN) of chairman;
+   chairmen : chairman_array;
+
+   task type employee;
+   task body employee is
+      taskToDo : taskk;
+      newProduct : product;
+   begin
+      loop
+         tasks.Remove(taskToDo);
+         newProduct := (value => doTask(taskToDo));
+         storage.Insert(newProduct);
+         inform("EMPLOYEE: I've done my task! Result is:" & Float'Image(newProduct.value));
+         delay(Duration(EMPLOYEE_SLEEP));
+      end loop;
+   end employee;
+   type employee_array is array(1..MAX_EMPLOYEES) of employee;
+   employees : employee_array;
+
+   task type client;
+   task body client is
+      newProduct : product;
+   begin
+      loop
+         inform("CLIENT: I am waiting for my product.");
+         storage.Remove(newProduct);
+         inform("CLIENT: Product taken from display, product value: " & Float'Image(newProduct.value));
+         delay(Duration(CLIENT_SLEEP));
+      end loop;
+   end client;
+   type clients_array is array(1..MAX_CLIENTS) of client;
+   clients : clients_array;
 
 
-   --     tests
-   --     type My_Array is array(5..12) of Float;
-   --     Arr : My_Array := (7 => 9.6, 11 => 99.0, others => 1.1);
-   --     type MyInt is new Integer range -100..100;
-   --     subtype MyInt2 is Integer range -100..100;
+
+
+
+
+
 begin
---     ada.Command_Line.Argument(1)
+   if (Ada.Command_Line.Argument_Count < 2) then
+      Put_Line("Wrong number of arguments. Valid input is calm|-c|talkative|-t");
+   else
+      if (Ada.Command_Line.Argument(2) = "-t" or Ada.Command_Line.Argument(2) = "talkative") then
+         modee := TALKATIVE;
+      elsif (Ada.Command_Line.Argument(2) = "-c" or Ada.Command_Line.Argument(2) = "calm") then
+         modee := CALM;
+      end if;
+   end if;
+
+   if (modee = CALM) then
+      loop
+         Put_Line("Options:" & NL & "    s - show Storage"& NL &"    t - show Task list" & NL);
+         declare
+            S : String(1..40);
+            Last : Natural;
+
+            HeadT : TaskListRange;
+            HeadS : StorageListRange;
+            Length : Natural;
+            storageArr : StorageArray;
+            tasksArr : TaskArray;
+            index : TaskListRange;
+         begin
+            Get_Line(S, Last);
+             if (S(1..Last) = "s") then
+               storageArr := storage.seeStorage(Length,HeadS);
+               Put("[ ");
+               for I in Natural(HeadS)..(Natural(HeadS) + Length -1) loop
+                  Put(Float'Image(storageArr(StorageListRange(I mod Length + 1)).value) & " ");
+               end loop;
+               Put("]" & NL);
+             elsif (S(1..Last) = "t") then
+               tasksArr := tasks.seeTaskList(Length,HeadT);
+               Put("[ ");
+               for I in Natural(HeadT)..(Natural(HeadT) + Length -1) loop
+                  index := TaskListRange(I mod Length + 1);
+                  Put("{" & Float'Image(tasksArr(index).first) &
+                        operatorT'Image(tasksArr(index).operator) &
+                        Float'Image(tasksArr(index).second) & " } ");
+               end loop;
+               Put("]" & NL);
+            else
+               Put_Line("Wrong argument");
+            end if;
+         end;
+      end loop;
+   end if;
    Put_Line("xD");
-   null;
+
 end Main;
