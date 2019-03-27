@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"sync"
+	// "sync"
 	"time"
 	. "constants"
 )
@@ -36,6 +36,10 @@ type task struct {
 
 type product struct {
 	value float64
+}
+
+type readOperation struct {
+	response chan string
 }
 
 func inform(message ...interface{}) {
@@ -91,9 +95,8 @@ func getChannelIfCondition(predicate bool, channel <-chan product) <-chan produc
 	return nil
 }
 
-func storageManager(storageChannel <-chan product, storage *[]product, display chan<- product, mutex *sync.Mutex) {
+func storageManager(storageChannel <-chan product, storage *[]product, display chan<- product, storageReadChannel <-chan *readOperation) {
 	for {
-		mutex.Lock()
 		if len(*storage) > 0 {
 			index := rand.Intn(len(*storage)) // [0,len)
 			select {
@@ -103,15 +106,18 @@ func storageManager(storageChannel <-chan product, storage *[]product, display c
 			case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
 				inform("STORAGE MANAGER: Adding new product to the storage.")
 				*storage = append(*storage, newProduct)
+			case readOp := <-storageReadChannel:
+				readOp.response <- fmt.Sprint(*storage)
 			}
 		} else {
 			select {
 			case newProduct := <-storageChannel:
 				inform("STORAGE MANAGER: Adding new product to the storage.")
 				*storage = append(*storage, newProduct)
+			case readOp := <-storageReadChannel:
+				readOp.response <- fmt.Sprint(*storage)
 			}
-		}
-		mutex.Unlock()
+		}//5 nie 6 tak 7 tak 8 tak
 	}
 }
 
@@ -129,9 +135,8 @@ func maybeInTaskChannel(predicate bool, channel <-chan task) <-chan task {
 	return nil
 }
 
-func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- task, mutex *sync.Mutex) {
+func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- task, taskReadChannel <-chan *readOperation) {
 	for {
-		mutex.Lock()
 		if len(*taskList) > 0 {
 			select {
 			case newTask := <-maybeInTaskChannel(len(*taskList) < MAX_TASKLIST_SIZE, tasks): //tasks
@@ -140,15 +145,18 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 			case taskOutChannel <- (*taskList)[0]:
 				inform("TASKS MANAGER: Sending new task.")
 				*taskList = append((*taskList)[:0], (*taskList)[1:]...)
+			case readOp := <- taskReadChannel:
+				readOp.response <- fmt.Sprint(*taskList)
 			}
 		} else {
 			select {
 			case newTask := <-tasks:
 				*taskList = append(*taskList, newTask)
 				inform("TASKS MANAGER: Adding new task to the tasklist.")
+			case readOp := <- taskReadChannel:
+				readOp.response <- fmt.Sprint(*taskList)
 			}
 		}
-		mutex.Unlock()
 	}
 }
 
@@ -176,8 +184,8 @@ func main() {
 		fmt.Println("ERROR:", arg, " is not valid argument.")
 	}
 	scanner := bufio.NewScanner(os.Stdin)
-	var mutexStorage = &sync.Mutex{}
-	var mutexTasks = &sync.Mutex{}
+	// var mutexStorage = &sync.Mutex{}
+	// var mutexTasks = &sync.Mutex{}
 	rand.Seed(time.Now().UTC().UnixNano())
 	fmt.Println(MAX_EMPLOYEES)
 	tasks := make([]task, 0, MAX_TASKLIST_SIZE)
@@ -185,10 +193,12 @@ func main() {
 	tasksChannelIn := make(chan task)
 	tasksChannelOut := make(chan task)
 	productChannel := make(chan product)
+	tasksReadChannel := make(chan *readOperation)
+	storageReadChannel := make(chan *readOperation)
 	display := make(chan product)
 
-	go tasksManager(tasksChannelIn, &tasks, tasksChannelOut, mutexTasks)
-	go storageManager(productChannel, &storage, display, mutexStorage)
+	go tasksManager(tasksChannelIn, &tasks, tasksChannelOut, tasksReadChannel)
+	go storageManager(productChannel, &storage, display, storageReadChannel)
 
 	for i := 0; i < MAX_CHAIRMEN; i++ {
 		go chairman(tasksChannelIn)
@@ -203,16 +213,17 @@ func main() {
 	}
 	fmt.Println("Options:\n    s - show Storage\n    t - show Task list\n    ")
 	for scanner.Scan() && mode == CALM {
-		var line = scanner.Text()
+		line := scanner.Text()
+		var operation readOperation
 		switch line {
 		case "s":
-			mutexStorage.Lock()
-			fmt.Println(storage)
-			mutexStorage.Unlock()
+			operation = readOperation{make(chan string)}
+			storageReadChannel <- &operation
+			fmt.Println(<-operation.response)
 		case "t":
-			mutexTasks.Lock()
-			fmt.Println(tasks)
-			mutexTasks.Unlock()
+			operation = readOperation{make(chan string)}
+			tasksReadChannel <- &operation
+			fmt.Println(<-operation.response)
 		default:
 			fmt.Println("Wrong option.\nOptions:\n    s - show Storage\n    t - show Task list\n    ")
 		}
