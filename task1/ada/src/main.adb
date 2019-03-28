@@ -212,12 +212,12 @@ procedure Main is
 
 
 begin
-   if (Ada.Command_Line.Argument_Count < 2) then
+   if (Ada.Command_Line.Argument_Count < 1) then
       Put_Line("Wrong number of arguments. Valid input is calm|-c|talkative|-t");
    else
-      if (Ada.Command_Line.Argument(2) = "-t" or Ada.Command_Line.Argument(2) = "talkative") then
+      if (Ada.Command_Line.Argument(1) = "-t" or Ada.Command_Line.Argument(1) = "talkative") then
          modee := TALKATIVE;
-      elsif (Ada.Command_Line.Argument(2) = "-c" or Ada.Command_Line.Argument(2) = "calm") then
+      elsif (Ada.Command_Line.Argument(1) = "-c" or Ada.Command_Line.Argument(1) = "calm") then
          modee := CALM;
       end if;
    end if;
