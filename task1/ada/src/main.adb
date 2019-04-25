@@ -2,9 +2,12 @@ with Ada.Text_IO;
 with Ada.Numerics.Float_Random;
 with Ada.Numerics.Discrete_Random;
 with Ada.Command_Line;
+with constants;
 --  with Ada.Strings.Unbounded;
 --  use Ada.Strings.unbounded;
 use Ada.Text_IO;
+use constants;
+
 
 procedure Main is
    package FRand renames Ada.Numerics.Float_Random;
@@ -13,15 +16,15 @@ procedure Main is
    type operatorT is ('+', '-', '*');
    type operatorsArray is array(0..2) of operatorT;
 
-   MAX_ARGUMENT_VALUE :  constant  := 500.0;
-   MAX_EMPLOYEES        : constant  := 2;
-   MAX_CHAIRMEN         : constant  := 1;
-   MAX_CLIENTS          : constant  := 1;
-   MAX_TASKLIST_SIZE    : constant  := 40;
-   MAX_STORAGE_CAPACITY : constant  := 40;
-   EMPLOYEE_SLEEP       : constant  := 1;
-   CHAIRMAN_SLEEP       : constant  := 0.4;
-   CLIENT_SLEEP         : constant  := 2;
+--     MAX_ARGUMENT_VALUE :  constant  := 500.0;
+--     MAX_EMPLOYEES        : constant  := 2;
+--     MAX_CHAIRMEN         : constant  := 1;
+--     MAX_CLIENTS          : constant  := 1;
+--     MAX_TASKLIST_SIZE    : constant  := 40;
+--     MAX_STORAGE_CAPACITY : constant  := 40;
+--     EMPLOYEE_SLEEP       : constant  := 1;
+--     CHAIRMAN_SLEEP       : constant  := 0.4;
+--     CLIENT_SLEEP         : constant  := 2;
    NL : constant String := Character'Val(13) & Character'Val(10);
 
    modee : Mode := CALM;

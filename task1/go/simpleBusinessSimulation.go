@@ -42,6 +42,10 @@ type readOperation struct {
 	response chan string
 }
 
+type getProductOperation struct {
+	display chan product
+}
+
 func inform(message ...interface{}) {
 	if mode == TALKATIVE {
 		fmt.Println(message...)
@@ -95,29 +99,31 @@ func getChannelIfCondition(predicate bool, channel <-chan product) <-chan produc
 	return nil
 }
 
-func storageManager(storageChannel <-chan product, storage *[]product, display chan<- product, storageReadChannel <-chan *readOperation) {
+func getGetProductOperationChannelIfCondition(predicate bool, channel <-chan *getProductOperation) <-chan *getProductOperation {
+	if predicate {
+		return channel
+	}
+	return nil
+}
+
+func storageManager(storageChannel <-chan product, storage *[]product, 
+	getProductChannel <-chan *getProductOperation, storageReadChannel <-chan *readOperation) {
 	for {
-		if len(*storage) > 0 {
+		select {
+		case getProductOp := <- getGetProductOperationChannelIfCondition(len(*storage) > 0 ,getProductChannel):
 			index := rand.Intn(len(*storage)) // [0,len)
-			select {
-			case display <- (*storage)[index]:
-				inform("STORAGE MANAGER: Product sent to display.")
-				*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
-			case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
-				inform("STORAGE MANAGER: Adding new product to the storage.")
-				*storage = append(*storage, newProduct)
-			case readOp := <-storageReadChannel:
-				readOp.response <- fmt.Sprint(*storage)
-			}
-		} else {
-			select {
-			case newProduct := <-storageChannel:
-				inform("STORAGE MANAGER: Adding new product to the storage.")
-				*storage = append(*storage, newProduct)
-			case readOp := <-storageReadChannel:
-				readOp.response <- fmt.Sprint(*storage)
-			}
-		}//5 nie 6 tak 7 tak 8 tak
+			getProductOp.display <- (*storage)[index] 
+			inform("STORAGE MANAGER: Product sent to display.")  
+			*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
+		// case display <- (*storage)[index]:
+		// 	inform("STORAGE MANAGER: Product sent to display.")
+		// 	*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
+		case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
+			inform("STORAGE MANAGER: Adding new product to the storage.")
+			*storage = append(*storage, newProduct)
+		case readOp := <-storageReadChannel:
+			readOp.response <- fmt.Sprint(*storage)
+		}
 	}
 }
 
@@ -160,10 +166,13 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 	}
 }
 
-func client(displayOfProducts <-chan product) {
+func client(getProductRequests chan<- *getProductOperation) {
 	for {
 		inform("CLIENT: I am waiting for my product.")
-		myProduct := <-displayOfProducts
+		display := make(chan product)
+		operation := getProductOperation{display}
+		getProductRequests <- &operation
+		myProduct := <-operation.display
 		inform("CLIENT: Product taken from display, product value: ", myProduct.value)
 		time.Sleep(CLIENT_SLEEP)
 	}
@@ -195,10 +204,10 @@ func main() {
 	productChannel := make(chan product)
 	tasksReadChannel := make(chan *readOperation)
 	storageReadChannel := make(chan *readOperation)
-	display := make(chan product)
+	getProductChannel := make(chan *getProductOperation)
 
 	go tasksManager(tasksChannelIn, &tasks, tasksChannelOut, tasksReadChannel)
-	go storageManager(productChannel, &storage, display, storageReadChannel)
+	go storageManager(productChannel, &storage, getProductChannel, storageReadChannel)
 
 	for i := 0; i < MAX_CHAIRMEN; i++ {
 		go chairman(tasksChannelIn)
@@ -209,7 +218,7 @@ func main() {
 	}
 
 	for i := 0; i < MAX_CLIENTS; i++ {
-		go client(display)
+		go client(getProductChannel)
 	}
 	fmt.Println("Options:\n    s - show Storage\n    t - show Task list\n    ")
 	for scanner.Scan() && mode == CALM {
