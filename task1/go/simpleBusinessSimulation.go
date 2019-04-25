@@ -115,9 +115,6 @@ func storageManager(storageChannel <-chan product, storage *[]product,
 			getProductOp.display <- (*storage)[index] 
 			inform("STORAGE MANAGER: Product sent to display.")  
 			*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
-		// case display <- (*storage)[index]:
-		// 	inform("STORAGE MANAGER: Product sent to display.")
-		// 	*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
 		case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
 			inform("STORAGE MANAGER: Adding new product to the storage.")
 			*storage = append(*storage, newProduct)
