@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	// "sync"
+	"sync"
 	. "constants"
 	"time"
 )
@@ -48,6 +48,7 @@ type machine struct {
 type employee struct {
 	isPatient        bool
 	numberOfTaskDone int
+	lock sync.Mutex
 }
 
 type readOperation struct {
@@ -123,9 +124,23 @@ func (em *employee) employee(tasks <-chan task, storageChannel chan<- product, a
 
 		storageChannel <- product{value: taskDone.result}
 		inform("EMPLOYEE: I've done my task! Result is:", taskDone.result)
-		em.numberOfTaskDone++
+		em.incrementNumberOfTaskDone()
 		time.Sleep(EMPLOYEE_SLEEP)
 	}
+}
+
+func (empl *employee) incrementNumberOfTaskDone() {
+	empl.lock.Lock()
+	defer empl.lock.Unlock()
+
+	empl.numberOfTaskDone++
+}
+
+func (empl *employee) getNumberOfTasksDone() int {
+	empl.lock.Lock()
+	defer empl.lock.Unlock()
+
+	return empl.numberOfTaskDone
 }
 
 func getChannelIfCondition(predicate bool, channel <-chan product) <-chan product {
@@ -253,7 +268,7 @@ func main() {
 	fmt.Println(MAX_EMPLOYEES)
 	tasks := make([]task, 0, MAX_TASKLIST_SIZE)
 	storage := make([]product, 0, MAX_STORAGE_CAPACITY)
-	employees := make([]employee, 0, MAX_EMPLOYEES)
+	employees := make([]*employee, 0, MAX_EMPLOYEES)
 	addMachines := make([]machine, 0, NUMBER_OF_MACHINES)
 	substractMachines := make([]machine, 0, NUMBER_OF_MACHINES)
 	multiplyMachines := make([]machine, 0, NUMBER_OF_MACHINES)
@@ -294,14 +309,14 @@ func main() {
 
 	for i := 0; i < MAX_EMPLOYEES; i++ {
 		emp := employee{isPatient: rand.Float64() < IMPATIENT_PROBABILITY}
-		employees = append(employees, emp)
+		employees = append(employees, &emp)
 		go emp.employee(tasksChannelOut, productChannel, machines)
 	}
 
 	for i := 0; i < MAX_CLIENTS; i++ {
 		go client(getProductChannel)
 	}
-	fmt.Println("Options:\n    s - show Storage\n    t - show Task list\n    ")
+	fmt.Println("Options:\n    s - show Storage\n    t - show Task list\n    e - show Employee statistics\n    ")
 	for scanner.Scan() && mode == CALM {
 		line := scanner.Text()
 		var operation readOperation
@@ -314,8 +329,12 @@ func main() {
 			operation = readOperation{make(chan string)}
 			tasksReadChannel <- &operation
 			fmt.Println(<-operation.response)
+		case "e":
+			for u := 0; u < MAX_EMPLOYEES; u++ {
+				fmt.Println("Employee (isPatient =",employees[u].isPatient ,") has done", employees[u].getNumberOfTasksDone(), "tasks.")
+			}
 		default:
-			fmt.Println("Wrong option.\nOptions:\n    s - show Storage\n    t - show Task list\n    ")
+			fmt.Println("Wrong option.\nOptions:\n    s - show Storage\n    t - show Task list\n    e - show Employee statistics\n    ")
 		}
 	}
 }
