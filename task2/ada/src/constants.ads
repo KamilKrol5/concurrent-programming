@@ -9,5 +9,9 @@ package constants is
    EMPLOYEE_SLEEP       : constant  := 1;
    CHAIRMAN_SLEEP       : constant  := 0.4;
    CLIENT_SLEEP         : constant  := 2;
+   NUMBER_OF_MACHINES   : constant  := 2;
+   MACHINE_SLEEP        : constant  := 0.8;
+   IMPATIENT_WAIT       : constant  := 1.0;
+   IMPATIENT_PROBABILITY: constant  := 0.5;
    
 end constants;
