@@ -110,6 +110,7 @@ func (em *employee) employee(tasks <-chan task, storageChannel chan<- product, a
 			taskIsDOne := false
 			for !taskIsDOne {
 				chosenMachine := availableMachines[tsk.operator][rand.Intn(len(availableMachines[tsk.operator]))]
+				inform("IMPATIENT EMPLOYEE: Waiting for a machine.")
 				select {
 				case chosenMachine.taskSourceChannel <- &tsk:
 					inform("IMPATIENT EMPLOYEE: I put my task into the machine.")
