@@ -50,6 +50,7 @@ package body objects is
             newProduct := (value => taskToDo.result);
          else
             loop 
+               chosenMachineIndex := R.Random(Gen2);
                inform("EMPLOYEE (IMPATIENT): Waiting for machine.");
                select 
                   machinesSet(taskToDo.operator)(chosenMachineIndex).DelegateTask(taskToDo);
