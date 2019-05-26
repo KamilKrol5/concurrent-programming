@@ -32,7 +32,7 @@ type task struct {
 	first    float64
 	second   float64
 	operator string
-	result   float64
+	result   *float64
 }
 
 type product struct {
@@ -41,14 +41,32 @@ type product struct {
 
 type machine struct {
 	operation         string
+	status			  int
 	taskSourceChannel chan *task
 	resultChannel     chan *task
+	backDoor		  chan int
 }
 
 type employee struct {
 	isPatient        bool
 	numberOfTaskDone int
 	lock sync.Mutex
+}
+
+type serviceMan struct {
+	id     int
+	isFree bool
+}
+
+type report struct {
+	targetMachine *machine
+	machineIndex   int
+}
+
+type service struct {
+	serviceMen       []serviceMan
+	reportChannel    chan *report
+	fixReportChannel chan *report
 }
 
 type readOperation struct {
@@ -65,19 +83,23 @@ func inform(message ...interface{}) {
 	}
 }
 
-func doTask(tsk *task) (float64, error) {
+func doTask(tsk *task) (*float64, error) {
 	switch tsk.operator {
 	case "+":
-		tsk.result = tsk.first + tsk.second
+		x := tsk.first + tsk.second
+		tsk.result = &x
 		return tsk.result, nil
 	case "-":
-		tsk.result = tsk.first - tsk.second
+		x := tsk.first - tsk.second
+		tsk.result = &x
 		return tsk.result, nil
 	case "*":
-		tsk.result = tsk.first * tsk.second
+		x := tsk.first * tsk.second
+		tsk.result = &x
 		return tsk.result, nil
 	default:
-		return 0, errors.New("Wrong operator provided: " + tsk.operator)
+		xd := 0.0
+		return &xd, errors.New("Wrong operator provided: " + tsk.operator)
 	}
 }
 
@@ -94,36 +116,52 @@ func chairman(tasks chan<- task) {
 	}
 }
 
-func (em *employee) employee(tasks <-chan task, storageChannel chan<- product, availableMachines map[string][]machine) {
+func (em *employee) employee(tasks <-chan task, storageChannel chan<- product, availableMachines map[string][]machine, serviceChannel chan<- *report ) {
 	em.numberOfTaskDone = 0
 	for {
 		tsk := <-tasks
 		var taskDone *task
 		// res, err := doTask(&tsk)
 		if em.isPatient {
-			chosenMachine := availableMachines[tsk.operator][rand.Intn(len(availableMachines[tsk.operator]))]
-			chosenMachine.taskSourceChannel <- &tsk
-			inform("PATIENT EMPLOYEE: I put my task into the machine.")
-			taskDone = <-chosenMachine.resultChannel
-			inform("PATIENT EMPLOYEE: I got a result.")
+			taskIsDone := false
+			for !taskIsDone {
+				randIndex := rand.Intn(len(availableMachines[tsk.operator]))
+				chosenMachine := &availableMachines[tsk.operator][randIndex]
+				chosenMachine.taskSourceChannel <- &tsk
+				inform("PATIENT EMPLOYEE: I put my task into the machine.")
+				taskDone = <-chosenMachine.resultChannel
+				if (taskDone.result == nil) {
+					inform("IMPATIENT EMPLOYEE: I got an empty result. Machine must be broken.")
+					serviceChannel <- &report{targetMachine: chosenMachine, machineIndex: randIndex}
+				} else {
+					inform("PATIENT EMPLOYEE: I got a result.")
+					taskIsDone = true
+				}
+			}
 		} else {
 			taskIsDOne := false
 			for !taskIsDOne {
-				chosenMachine := availableMachines[tsk.operator][rand.Intn(len(availableMachines[tsk.operator]))]
+				randIndex := rand.Intn(len(availableMachines[tsk.operator]))
+				chosenMachine := &availableMachines[tsk.operator][randIndex]
 				inform("IMPATIENT EMPLOYEE: Waiting for a machine.")
 				select {
 				case chosenMachine.taskSourceChannel <- &tsk:
 					inform("IMPATIENT EMPLOYEE: I put my task into the machine.")
 					taskDone = <-chosenMachine.resultChannel
-					inform("IMPATIENT EMPLOYEE: I got a result.")
-					taskIsDOne = true
+					if (taskDone.result == nil) {
+						inform("IMPATIENT EMPLOYEE: I got an empty result. Machine must be broken.")
+						serviceChannel <- &report{targetMachine: chosenMachine, machineIndex: randIndex}
+					} else {
+						inform("IMPATIENT EMPLOYEE: I got a result.")
+						taskIsDOne = true
+					}
 				case <-time.After(IMPATIENT_WAIT):
 					inform("IMPATIENT EMPLOYEE: I'll try another machine.")
 				}
 			}
 		}
 
-		storageChannel <- product{value: taskDone.result}
+		storageChannel <- product{value: *taskDone.result }
 		inform("EMPLOYEE: I've done my task! Result is:", taskDone.result)
 		em.incrementNumberOfTaskDone()
 		time.Sleep(EMPLOYEE_SLEEP)
@@ -232,18 +270,73 @@ func client(getProductRequests chan<- *getProductOperation) {
 
 func (m *machine) runMachine() {
 	for {
-		tsk := <-m.taskSourceChannel
-		if tsk.operator != m.operation {
-			panic("An attempt to perfrom operation which is different from machine operation type.")
-		} else {
-			_, err := doTask(tsk)
-			if err != nil {
-				inform(err.Error() + "MACHINE: Something went wrong in machine routine.")
+		select {
+		case tsk := <-m.taskSourceChannel:
+			if tsk.operator != m.operation {
+				panic("An attempt to perfrom operation which is different from machine operation type.")
 			} else {
-				time.Sleep(MACHINE_SLEEP)
-				inform("MACHINE: Sending result")
-				m.resultChannel <- tsk
+				if (m.status != BROKEN) {
+					_, err := doTask(tsk)
+					if err != nil {
+						inform(err.Error() + "MACHINE: Something went wrong in machine routine.")
+					} else {
+						time.Sleep(MACHINE_SLEEP)
+						inform("MACHINE: Sending result")
+						m.resultChannel <- tsk
+					}
+					if (rand.Float64() < IMPATIENT_PROBABILITY) {
+						m.status = BROKEN
+					}
+				} else {
+					inform("MACHINE BROKEN!")
+					m.resultChannel <- tsk
+				}
 			}
+		case mess := <- m.backDoor:
+			if (mess == WORKING) {
+				m.status = WORKING
+			}
+		}
+	}
+}
+
+func (s* service) service(machines *map[string][]machine) {
+	addMachines := make([]bool, 0, NUMBER_OF_MACHINES)
+	substractMachines := make([]bool, 0, NUMBER_OF_MACHINES)
+	multiplyMachines := make([]bool, 0, NUMBER_OF_MACHINES)
+	machineStates := make(map[string][]bool)
+	for h := 0; h < NUMBER_OF_MACHINES; h++ {
+		addMachines = append(addMachines, false)
+		substractMachines = append(substractMachines, false)
+		multiplyMachines = append(multiplyMachines ,false)
+	}
+	machineStates["+"] = addMachines
+	machineStates["-"] = substractMachines
+	machineStates["*"] = multiplyMachines
+	loop1: for {
+		select {
+		case rep := <- s.reportChannel:
+			if (!machineStates[rep.targetMachine.operation][rep.machineIndex]) {
+				for {
+					for i := range s.serviceMen {
+						man := s.serviceMen[i]
+						if (man.isFree) {
+							man.isFree = false
+							go func(rep1 *report) {
+								machineStates[rep1.targetMachine.operation][rep1.machineIndex] = true
+								inform("SERVICE MAN ",man.id, ": was sent to fix a machine" )
+								time.Sleep(SERVICE_MAN_SLEEP)
+								inform("SERVICE MAN ",man.id, ": is fixing a machine" )
+								rep1.targetMachine.backDoor <- WORKING
+								s.reportChannel <- &report{ targetMachine: rep1.targetMachine, machineIndex: rep1.machineIndex }
+							}(rep)
+							break loop1
+						}
+					}
+				}
+			}
+		case rep := <- s.fixReportChannel:
+			machineStates[rep.targetMachine.operation][rep.machineIndex] = false
 		}
 	}
 }
@@ -285,13 +378,16 @@ func main() {
 	for h := 0; h < NUMBER_OF_MACHINES; h++ {
 		addMachines = append(addMachines, machine{operation: "+",
 			taskSourceChannel: make(chan *task),
-			resultChannel:     make(chan *task)})
+			resultChannel:     make(chan *task),
+			backDoor:          make(chan int)})
 		substractMachines = append(substractMachines, machine{operation: "-",
 			taskSourceChannel: make(chan *task),
-			resultChannel:     make(chan *task)})
+			resultChannel:     make(chan *task),
+			backDoor:          make(chan int)})
 		multiplyMachines = append(multiplyMachines, machine{operation: "*",
 			taskSourceChannel: make(chan *task),
-			resultChannel:     make(chan *task)})
+			resultChannel:     make(chan *task),
+			backDoor:          make(chan int)})
 		go addMachines[h].runMachine()
 		go substractMachines[h].runMachine()
 		go multiplyMachines[h].runMachine()
@@ -300,6 +396,20 @@ func main() {
 	machines["+"] = addMachines
 	machines["-"] = substractMachines
 	machines["*"] = multiplyMachines
+
+	serviceMen := make([]serviceMan, 0, SERVICE_MAN_COUNT)
+
+	for i := 0; i < SERVICE_MAN_COUNT; i++ {
+		serviceMen = append(serviceMen, serviceMan{id: i, isFree: false})
+	}
+
+	serv := service{
+		serviceMen,
+		make(chan *report),
+		make(chan *report),
+	}
+
+	go serv.service(&machines)
 
 	go tasksManager(tasksChannelIn, &tasks, tasksChannelOut, tasksReadChannel)
 	go storageManager(productChannel, &storage, getProductChannel, storageReadChannel)
@@ -311,7 +421,7 @@ func main() {
 	for i := 0; i < MAX_EMPLOYEES; i++ {
 		emp := employee{isPatient: rand.Float64() < IMPATIENT_PROBABILITY}
 		employees = append(employees, &emp)
-		go emp.employee(tasksChannelOut, productChannel, machines)
+		go emp.employee(tasksChannelOut, productChannel, machines, serv.reportChannel)
 	}
 
 	for i := 0; i < MAX_CLIENTS; i++ {
