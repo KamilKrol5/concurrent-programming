@@ -11,20 +11,6 @@ import (
 	"time"
 )
 
-// const (
-// 	MAX_ARGUMENT_VALUE   = 500.0
-// 	MAX_EMPLOYEES        = 2
-// 	MAX_CHAIRMEN         = 1
-// 	MAX_CLIENTS          = 1
-// 	MAX_TASKLIST_SIZE    = 40
-// 	MAX_STORAGE_CAPACITY = 40
-// 	EMPLOYEE_SLEEP       = 1000 * time.Millisecond
-// 	CHAIRMAN_SLEEP       = 400 * time.Millisecond
-// 	CLIENT_SLEEP         = 2000 * time.Millisecond
-// 	CALM                 = iota
-// 	TALKATIVE
-// )
-
 var operators = [3]string{"+", "-", "*"}
 var mode = CALM
 
@@ -63,10 +49,16 @@ type report struct {
 	machineIndex   int
 }
 
+type fixReport struct {
+	targetMachine *machine
+	machineIndex   int
+	whoFixed	   *serviceMan
+}
+
 type service struct {
 	serviceMen       []serviceMan
 	reportChannel    chan *report
-	fixReportChannel chan *report
+	fixReportChannel chan *fixReport
 }
 
 type readOperation struct {
@@ -109,9 +101,9 @@ func chairman(tasks chan<- task) {
 			first:    rand.Float64() * MAX_ARGUMENT_VALUE,
 			second:   rand.Float64() * MAX_ARGUMENT_VALUE,
 			operator: operators[rand.Intn(len(operators))]}
-		inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.", newTask)
+		//inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.", newTask)
 		tasks <- newTask
-		inform("CHAIRMAN: I've added a new task to the task list.")
+		//inform("CHAIRMAN: I've added a new task to the task list.")
 		time.Sleep(CHAIRMAN_SLEEP)
 	}
 }
@@ -131,7 +123,7 @@ func (em *employee) employee(tasks <-chan task, storageChannel chan<- product, a
 				inform("PATIENT EMPLOYEE: I put my task into the machine.")
 				taskDone = <-chosenMachine.resultChannel
 				if (taskDone.result == nil) {
-					inform("IMPATIENT EMPLOYEE: I got an empty result. Machine must be broken.")
+					inform("PATIENT EMPLOYEE: I got an empty result. Machine must be broken.")
 					serviceChannel <- &report{targetMachine: chosenMachine, machineIndex: randIndex}
 				} else {
 					inform("PATIENT EMPLOYEE: I got a result.")
@@ -203,13 +195,13 @@ func storageManager(storageChannel <-chan product, storage *[]product,
 		case getProductOp := <-getGetProductOperationChannelIfCondition(len(*storage) > 0, getProductChannel):
 			index := rand.Intn(len(*storage)) // [0,len)
 			getProductOp.display <- (*storage)[index]
-			inform("STORAGE MANAGER: Product sent to display.")
+			//inform("STORAGE MANAGER: Product sent to display.")
 			*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
 		// case display <- (*storage)[index]:
 		// 	inform("STORAGE MANAGER: Product sent to display.")
 		// 	*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
 		case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
-			inform("STORAGE MANAGER: Adding new product to the storage.")
+			//inform("STORAGE MANAGER: Adding new product to the storage.")
 			*storage = append(*storage, newProduct)
 		case readOp := <-storageReadChannel:
 			readOp.response <- fmt.Sprint(*storage)
@@ -237,9 +229,9 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 			select {
 			case newTask := <-maybeInTaskChannel(len(*taskList) < MAX_TASKLIST_SIZE, tasks): //tasks
 				*taskList = append(*taskList, newTask)
-				inform("TASKS MANAGER: Adding new task to the tasklist.")
+				//inform("TASKS MANAGER: Adding new task to the tasklist.")
 			case taskOutChannel <- (*taskList)[0]:
-				inform("TASKS MANAGER: Sending new task.")
+				//inform("TASKS MANAGER: Sending new task.")
 				*taskList = append((*taskList)[:0], (*taskList)[1:]...)
 			case readOp := <-taskReadChannel:
 				readOp.response <- fmt.Sprint(*taskList)
@@ -248,7 +240,7 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 			select {
 			case newTask := <-tasks:
 				*taskList = append(*taskList, newTask)
-				inform("TASKS MANAGER: Adding new task to the tasklist.")
+				//inform("TASKS MANAGER: Adding new task to the tasklist.")
 			case readOp := <-taskReadChannel:
 				readOp.response <- fmt.Sprint(*taskList)
 			}
@@ -286,6 +278,7 @@ func (m *machine) runMachine() {
 					}
 					if (rand.Float64() < IMPATIENT_PROBABILITY) {
 						m.status = BROKEN
+						inform("MACHINE: has broken")
 					}
 				} else {
 					inform("MACHINE BROKEN!")
@@ -295,48 +288,64 @@ func (m *machine) runMachine() {
 		case mess := <- m.backDoor:
 			if (mess == WORKING) {
 				m.status = WORKING
+				inform("MACHINE: I am fixed!")
 			}
 		}
 	}
 }
 
-func (s* service) service(machines *map[string][]machine) {
-	addMachines := make([]bool, 0, NUMBER_OF_MACHINES)
-	substractMachines := make([]bool, 0, NUMBER_OF_MACHINES)
-	multiplyMachines := make([]bool, 0, NUMBER_OF_MACHINES)
-	machineStates := make(map[string][]bool)
+func (s* service) service(machines map[string][]machine) {
+	type mState struct {
+		hasManAssigned bool
+		status         int
+	}
+	addMachines := make([]mState, 0, NUMBER_OF_MACHINES)
+	substractMachines := make([]mState, 0, NUMBER_OF_MACHINES)
+	multiplyMachines := make([]mState, 0, NUMBER_OF_MACHINES)
+	machineStates := make(map[string][]mState)
 	for h := 0; h < NUMBER_OF_MACHINES; h++ {
-		addMachines = append(addMachines, false)
-		substractMachines = append(substractMachines, false)
-		multiplyMachines = append(multiplyMachines ,false)
+		addMachines = append(addMachines, mState{false, WORKING} )
+		substractMachines = append(substractMachines, mState{false, WORKING} )
+		multiplyMachines = append(multiplyMachines ,mState{false, WORKING} )
 	}
 	machineStates["+"] = addMachines
 	machineStates["-"] = substractMachines
 	machineStates["*"] = multiplyMachines
-	loop1: for {
+	inform("SERVICE: starting")
+	for {
 		select {
 		case rep := <- s.reportChannel:
-			if (!machineStates[rep.targetMachine.operation][rep.machineIndex]) {
-				for {
-					for i := range s.serviceMen {
-						man := s.serviceMen[i]
+			if (!machineStates[rep.targetMachine.operation][rep.machineIndex].hasManAssigned) {
+				inform("SERVICE: I have received a report about broken machine")
+				machineStates[rep.targetMachine.operation][rep.machineIndex].status = BROKEN
+			}
+		case rep := <- s.fixReportChannel:
+			machineStates[rep.targetMachine.operation][rep.machineIndex].hasManAssigned = false
+			machineStates[rep.targetMachine.operation][rep.machineIndex].status = WORKING
+			rep.whoFixed.isFree = true
+		}
+		for k,v := range machineStates {
+			for m := range v {
+				if (v[m].status == BROKEN) {
+					inform("SERVICE: I will try to find free service man")
+					loop1: for i := range s.serviceMen {
+						man := &s.serviceMen[i]
 						if (man.isFree) {
+							inform("SERVICE: free service man has been found and will be sent to a broken machine")
 							man.isFree = false
-							go func(rep1 *report) {
-								machineStates[rep1.targetMachine.operation][rep1.machineIndex] = true
+							go func(man *serviceMan, op string, mIndex int) {
+								machineStates[op][mIndex].hasManAssigned = true
 								inform("SERVICE MAN ",man.id, ": was sent to fix a machine" )
 								time.Sleep(SERVICE_MAN_SLEEP)
 								inform("SERVICE MAN ",man.id, ": is fixing a machine" )
-								rep1.targetMachine.backDoor <- WORKING
-								s.reportChannel <- &report{ targetMachine: rep1.targetMachine, machineIndex: rep1.machineIndex }
-							}(rep)
+								machines[op][mIndex].backDoor <- WORKING
+								s.fixReportChannel <- &fixReport{ targetMachine: &machines[op][mIndex], machineIndex: mIndex, whoFixed: man }
+							}(man, k, m)
 							break loop1
 						}
 					}
 				}
 			}
-		case rep := <- s.fixReportChannel:
-			machineStates[rep.targetMachine.operation][rep.machineIndex] = false
 		}
 	}
 }
@@ -377,14 +386,17 @@ func main() {
 
 	for h := 0; h < NUMBER_OF_MACHINES; h++ {
 		addMachines = append(addMachines, machine{operation: "+",
+			status:            WORKING,
 			taskSourceChannel: make(chan *task),
 			resultChannel:     make(chan *task),
 			backDoor:          make(chan int)})
 		substractMachines = append(substractMachines, machine{operation: "-",
+			status:            WORKING,
 			taskSourceChannel: make(chan *task),
 			resultChannel:     make(chan *task),
 			backDoor:          make(chan int)})
 		multiplyMachines = append(multiplyMachines, machine{operation: "*",
+			status:            WORKING,
 			taskSourceChannel: make(chan *task),
 			resultChannel:     make(chan *task),
 			backDoor:          make(chan int)})
@@ -400,16 +412,16 @@ func main() {
 	serviceMen := make([]serviceMan, 0, SERVICE_MAN_COUNT)
 
 	for i := 0; i < SERVICE_MAN_COUNT; i++ {
-		serviceMen = append(serviceMen, serviceMan{id: i, isFree: false})
+		serviceMen = append(serviceMen, serviceMan{id: i, isFree: true})
 	}
 
 	serv := service{
-		serviceMen,
-		make(chan *report),
-		make(chan *report),
+		serviceMen: serviceMen,
+		reportChannel:    make(chan *report),
+		fixReportChannel: make(chan *fixReport),
 	}
 
-	go serv.service(&machines)
+	go serv.service(machines)
 
 	go tasksManager(tasksChannelIn, &tasks, tasksChannelOut, tasksReadChannel)
 	go storageManager(productChannel, &storage, getProductChannel, storageReadChannel)
