@@ -101,9 +101,9 @@ func chairman(tasks chan<- task) {
 			first:    rand.Float64() * MAX_ARGUMENT_VALUE,
 			second:   rand.Float64() * MAX_ARGUMENT_VALUE,
 			operator: operators[rand.Intn(len(operators))]}
-		//inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.", newTask)
+		inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.", newTask)
 		tasks <- newTask
-		//inform("CHAIRMAN: I've added a new task to the task list.")
+		inform("CHAIRMAN: I've added a new task to the task list.")
 		time.Sleep(CHAIRMAN_SLEEP)
 	}
 }
@@ -195,13 +195,13 @@ func storageManager(storageChannel <-chan product, storage *[]product,
 		case getProductOp := <-getGetProductOperationChannelIfCondition(len(*storage) > 0, getProductChannel):
 			index := rand.Intn(len(*storage)) // [0,len)
 			getProductOp.display <- (*storage)[index]
-			//inform("STORAGE MANAGER: Product sent to display.")
+			inform("STORAGE MANAGER: Product sent to display.")
 			*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
 		// case display <- (*storage)[index]:
 		// 	inform("STORAGE MANAGER: Product sent to display.")
 		// 	*storage = append((*storage)[:index], (*storage)[index+1:]...) //remove from storage
 		case newProduct := <-getChannelIfCondition(len(*storage) < MAX_STORAGE_CAPACITY, storageChannel):
-			//inform("STORAGE MANAGER: Adding new product to the storage.")
+			inform("STORAGE MANAGER: Adding new product to the storage.")
 			*storage = append(*storage, newProduct)
 		case readOp := <-storageReadChannel:
 			readOp.response <- fmt.Sprint(*storage)
@@ -229,9 +229,9 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 			select {
 			case newTask := <-maybeInTaskChannel(len(*taskList) < MAX_TASKLIST_SIZE, tasks): //tasks
 				*taskList = append(*taskList, newTask)
-				//inform("TASKS MANAGER: Adding new task to the tasklist.")
+				inform("TASKS MANAGER: Adding new task to the tasklist.")
 			case taskOutChannel <- (*taskList)[0]:
-				//inform("TASKS MANAGER: Sending new task.")
+				inform("TASKS MANAGER: Sending new task.")
 				*taskList = append((*taskList)[:0], (*taskList)[1:]...)
 			case readOp := <-taskReadChannel:
 				readOp.response <- fmt.Sprint(*taskList)
@@ -240,7 +240,7 @@ func tasksManager(tasks <-chan task, taskList *[]task, taskOutChannel chan<- tas
 			select {
 			case newTask := <-tasks:
 				*taskList = append(*taskList, newTask)
-				//inform("TASKS MANAGER: Adding new task to the tasklist.")
+				inform("TASKS MANAGER: Adding new task to the tasklist.")
 			case readOp := <-taskReadChannel:
 				readOp.response <- fmt.Sprint(*taskList)
 			}
