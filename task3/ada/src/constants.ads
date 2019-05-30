@@ -13,5 +13,10 @@ package constants is
    MACHINE_SLEEP        : constant  := 0.8;
    IMPATIENT_WAIT       : constant  := 1.0;
    IMPATIENT_PROBABILITY: constant  := 0.5;
+   SERVICE_MAN_COUNT    : constant  := 1;
+   SERVICE_MAN_SLEEP    : constant  := 0.1;
+   WORKING 	        : constant  := 1;
+   BROKEN	        : constant  := 0;
+   BREAK_PROBABILITY    : constant  := 0.4;
    
 end constants;

@@ -7,6 +7,17 @@ package objects is
    type operatorT is ('+', '-', '*');
    type operatorsArray is array(0..2) of operatorT;
    NL : constant String := Character'Val(13) & Character'Val(10);
+   type MachinesListRange is new Positive range 1 .. NUMBER_OF_MACHINES;
+   
+   type ServiceMenListRange is new Positive range 1..SERVICE_MAN_COUNT;
+   type ServiceMenTaskListRange is new Positive range 1..SERVICE_MAN_COUNT;
+   
+   type serviceManRecord is record
+      id: Integer := 1;
+      isFree : Boolean := True;
+   end record;
+   
+   type ServiceMenArray is array(ServiceMenListRange) of serviceManRecord;
    
    protected type ProtectedCounter is 
       function Get return Integer;
@@ -19,22 +30,55 @@ package objects is
       first : Float;
       second : Float;
       operator : operatorT;
-      result : Float;
+      result : access Float;
    end record;
 
    type product is record
       value : Float;
    end record;
+   
+   type report is record
+      machineType : operatorT;
+      machineIndex  : MachinesListRange;
+   end record;
 
---     type machineRecord is record
+   type fixReport is record
+      targetMachineType : operatorT;
+      tatgetMachineIndex: MachinesListRange;
+      whoFixedIndex:	   ServiceMenListRange;
+   end record;
+     
+
+   --     type machineRecord is record
 --        operation: operatorT;
 --     end record;
    
    task type machine is
-      entry Create (op : in operatorT);
+      entry Create (op : in operatorT; initState : in Integer);
       entry DelegateTask (tsk : in out taskk);
+      entry fix;
+      entry getStatus(stat : out Integer);
    end machine;
    
+   type mState is record
+      hasManAssigned : Boolean := False;
+      status         : Integer := WORKING;
+   end record;
+   
+   type MachinesServiceArray is array(MachinesListRange) of mState;
+   type MachinesServiceSetArray is array(operatorT) of MachinesServiceArray;
+   
+   task type serviceMan is
+      entry goAndFixMachine(rep : in report; myIndex : ServiceMenListRange);
+   end serviceMan;
+   
+   type ServiceMenTaskArray is array(ServiceMenTaskListRange) of serviceMan;
+   
+   task type service is
+      entry reportBrokenMachine(rep : in report);
+      entry fixReportEntry(rep : in fixReport);
+   end service;
+        
    type employeeRecord is record
       isPatient: Boolean;
       numberOfTaskDone: ProtectedCounter;
@@ -55,7 +99,7 @@ package objects is
    type TaskListRange is new Positive range 1 .. MAX_TASKLIST_SIZE;
    type TaskArray is array(TaskListRange) of taskk;
 
-   type MachinesListRange is new Positive range 1 .. NUMBER_OF_MACHINES;
+   
    type MachinesArray is array(MachinesListRange) of machine;
    type MachinesSetArray is array(operatorT) of MachinesArray;
    
@@ -91,14 +135,24 @@ package objects is
       Data : StorageArray;
    end StorageBufferType;
    
+   
+   
    modee : Mode := CALM;
    operators : operatorsArray := ('+', '-', '*');
+   machinesSet : MachinesSetArray;
+   
+   servicee: service;
+   serviceMen : ServiceMenArray;
+   serviceMenTasks : ServiceMenTaskArray;
    tasks : TaskBufferType;
    storage: StorageBufferType;  
    chairmen : chairman_array; 
+   
    clients : clients_array;
    employeeRecords : employeeRecord_array;
    employees : employee_array;
-   machinesSet : MachinesSetArray;
+   
+   
+   
 
 end objects;

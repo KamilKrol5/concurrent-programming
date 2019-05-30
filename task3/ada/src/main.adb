@@ -32,8 +32,12 @@ begin
 
    for k in machinesSet'Range loop
        for p in machinesSet(k)'Range loop
-          machinesSet(k)(p).Create(k);
+          machinesSet(k)(p).Create(k, WORKING);
        end loop;
+   end loop;
+
+   for k in ServiceMenListRange loop
+      serviceMen(k).id := Integer(k);
    end loop;
 
    FRand.Reset(Gen);
