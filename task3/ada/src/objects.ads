@@ -137,7 +137,7 @@ package objects is
    
    
    
-   modee : Mode := CALM;
+   modee : Mode := TALKATIVE;
    operators : operatorsArray := ('+', '-', '*');
    machinesSet : MachinesSetArray;
    

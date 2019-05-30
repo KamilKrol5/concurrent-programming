@@ -244,7 +244,7 @@ package body objects is
       loop
          newTask :=  (FRand.Random(Gen) * MAX_ARGUMENT_VALUE,
                       FRand.Random(Gen) * MAX_ARGUMENT_VALUE,
-                      operators(Integer(R.Random(Gen2))),new Float'(0.0));
+                      operators(Integer(R.Random(Gen2))),null);
          inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.");
          tasks.Insert(newTask);
          inform("CHAIRMAN: I've added a new task to the task list.");
