@@ -3,6 +3,7 @@ with Ada.Numerics.Float_Random;
 with Ada.Numerics.Float_Random;
 with Ada.Numerics.Discrete_Random;
 with Ada.Command_Line;
+with Ada.Exceptions;  use Ada.Exceptions;
 
 
 package body objects is
@@ -102,11 +103,12 @@ package body objects is
                   end select;
                end loop;
                if taskToDo.result = null then 
-                  inform("PATIENT EMPLOYEE: I got an empty result. Machine must be broken.");
+                  inform("IMPATIENT EMPLOYEE: I got an empty result. Machine must be broken.");
                   servicee.reportBrokenMachine(report'(taskToDo.operator, chosenMachineIndex));
+                  inform("IMPATIENT EMPLOYEE: I reported a broken machine.");
                else
-                  inform("PATIENT EMPLOYEE: I got a result.");
-		  taskIsDone := true;
+                  inform("IMPATIENT EMPLOYEE: I got a result.");
+                  taskIsDone := true;
                end if;
             end loop;
             newProduct := (value => taskToDo.result.all);
@@ -120,6 +122,8 @@ package body objects is
    end employee;
    
    task body serviceMan is
+      rep2 : report; 
+      mId: ServiceMenListRange;
    begin
       loop
          select
@@ -129,8 +133,11 @@ package body objects is
                delay duration(SERVICE_MAN_SLEEP);
                inform("SERVICE MAN " & Integer'Image(serviceMen(myIndex).id) &  ": is fixing a machine" );
                machinesSet(rep.machineType)(rep.machineIndex).fix;
-               servicee.fixReportEntry(fixReport'(rep.machineType, rep.machineIndex, myIndex));
+               rep2 := rep;
+               mId := myIndex;
             end goAndFixMachine;
+         servicee.fixReportEntry(fixReport'(rep2.machineType, rep2.machineIndex, mId));
+            
          end select;
       end loop;
    end serviceMan;
@@ -172,6 +179,10 @@ package body objects is
             end loop;
          end loop;
       end loop;
+   exception
+      when Error: others =>
+         Ada.Text_IO.Put ("Unexpected exception: ");
+         Ada.Text_IO.Put_Line (Exception_Information(Error));
    end service;
    
    protected body ProtectedCounter is 
@@ -245,9 +256,9 @@ package body objects is
          newTask :=  (FRand.Random(Gen) * MAX_ARGUMENT_VALUE,
                       FRand.Random(Gen) * MAX_ARGUMENT_VALUE,
                       operators(Integer(R.Random(Gen2))),null);
-         inform("CHAIRMAN: I've made up a new task! Trying to add it to task list.");
+         --("CHAIRMAN: I've made up a new task! Trying to add it to task list.");
          tasks.Insert(newTask);
-         inform("CHAIRMAN: I've added a new task to the task list.");
+         --("CHAIRMAN: I've added a new task to the task list.");
          delay duration(chairman_sleep);
       end loop;
    end chairman;
