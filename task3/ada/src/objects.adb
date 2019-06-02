@@ -126,7 +126,6 @@ package body objects is
       mId: ServiceMenListRange;
    begin
       loop
-         select
             accept goAndFixMachine(rep : in report; myIndex : ServiceMenListRange) do
                machinesServiceSet(rep.machineType)(rep.machineIndex).hasManAssigned := True;
                inform("SERVICE MAN " & Integer'Image(serviceMen(myIndex).id) & " was sent to fix a machine" );
@@ -137,8 +136,7 @@ package body objects is
                mId := myIndex;
             end goAndFixMachine;
          servicee.fixReportEntry(fixReport'(rep2.machineType, rep2.machineIndex, mId));
-            
-         end select;
+         
       end loop;
    end serviceMan;
    
